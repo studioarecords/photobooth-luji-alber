@@ -1,24 +1,122 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Selfie a Google Drive</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial; text-align: center; padding: 20px; }
-    video, canvas { width: 100%; max-width: 400px; }
-    button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📸 Toma tu foto</title>
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; background: #f0f0f0; }
+        #video { max-width: 100%; border: 2px solid #ccc; border-radius: 10px; margin: 15px auto; }
+        button {
+            padding: 14px 28px; font-size: 18px; margin: 10px;
+            border: none; border-radius: 8px; cursor: pointer;
+            background: #4CAF50; color: white;
+        }
+        #btn-upload { background: #2196F3; display: none; }
+        #btn-switch { background: #ff9800; }
+        #status { margin: 20px; font-weight: bold; min-height: 24px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
 </head>
 <body>
+    <h2>🎉 ¡Toma tu foto en el Cumple de Luji & Alber!</h2>
 
-  <h1>Tu Selfie App</h1>
-  <video id="video" autoplay></video>
-  <br>
-  <button onclick="tomarFoto()">Tomar Foto</button>
-  <canvas id="canvas" style="display:none;"></canvas>
+    <button id="btn-switch">🔄 Cambiar cámara</button>
 
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="app.js"></script>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <br>
+    <button id="btn-take">📸 Tomar Foto</button>
+    <button id="btn-upload">📤 Subir a Drive</button>
+    <div id="preview"></div>
+    <p id="status">Solicitando acceso a la cámara...</p>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const btnTake = document.getElementById('btn-take');
+        const btnUpload = document.getElementById('btn-upload');
+        const btnSwitch = document.getElementById('btn-switch');
+        const preview = document.getElementById('preview');
+        const status = document.getElementById('status');
+
+        let photoData = null;
+        let stream = null;
+        let currentFacingMode = "environment"; // trasera por defecto
+
+        async function startCamera() {
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                const constraints = {
+                    video: { facingMode: { exact: currentFacingMode } }
+                };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                status.textContent = `✅ Cámara ${currentFacingMode === 'user' ? 'frontal' : 'trasera'} activa`;
+                status.className = "success";
+            } catch (err) {
+                status.textContent = "❌ Error: " + err.message;
+                status.className = "error";
+            }
+        }
+
+        btnSwitch.addEventListener('click', () => {
+            currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+            startCamera();
+        });
+
+        btnTake.addEventListener('click', () => {
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            photoData = canvas.toDataURL('image/jpeg').split(',')[1];
+            preview.innerHTML = `<img src="data:image/jpeg;base64,${photoData}" width="300" style="border-radius:10px;">`;
+            btnUpload.style.display = 'inline-block';
+            status.textContent = "✅ Foto tomada. ¡Sube ahora!";
+            status.className = "success";
+        });
+
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUaLdGD7ojxx1nL_iDeoUVGxpasLIVX2w53rp0V9CbIN4DqYg12MGQdB0snYUGtQGAIw/exec";
+
+        btnUpload.addEventListener('click', async () => {
+            if (!photoData) {
+                status.textContent = "❌ No hay foto para subir.";
+                status.className = "error";
+                return;
+            }
+
+            status.textContent = "⏳ Subiendo...";
+            status.className = "";
+
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: photoData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    status.innerHTML = `✅ ¡Foto guardada en Google Drive! <br> <a href="${result.url}" target="_blank">Ver foto</a>`;
+                    status.className = "success";
+                    btnUpload.style.display = 'none';
+                    preview.innerHTML = '';
+                    photoData = null;
+                } else {
+                    throw new Error(result.error || "Error desconocido");
+                }
+            } catch (err) {
+                status.textContent = "❌ Error al subir: " + err.message;
+                status.className = "error";
+            }
+        });
+
+        startCamera();
+    </script>
 </body>
 </html>
