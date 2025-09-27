@@ -24,7 +24,7 @@
 
     <button id="btn-switch">🔄 Cambiar cámara</button>
 
-    <video id="video" autoplay playsinline></video>
+    <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas" style="display:none;"></canvas>
     <br>
     <button id="btn-take">📸 Tomar Foto</button>
@@ -43,39 +43,43 @@
 
         let photoData = null;
         let stream = null;
-        let currentFacingMode = "environment"; // trasera por defecto
+        let useFrontCamera = false; // false = trasera, true = frontal
 
         async function startCamera() {
             try {
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
                 }
+
+                // ✅ Usa facingMode SIN "exact" → más compatible
                 const constraints = {
-                    video: { facingMode: { exact: currentFacingMode } }
+                    video: useFrontCamera ? { facingMode: "user" } : { facingMode: "environment" }
                 };
+
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                status.textContent = `✅ Cámara ${currentFacingMode === 'user' ? 'frontal' : 'trasera'} activa`;
+                status.textContent = `✅ Cámara ${useFrontCamera ? 'frontal' : 'trasera'} activa`;
                 status.className = "success";
             } catch (err) {
                 status.textContent = "❌ Error: " + err.message;
                 status.className = "error";
+                console.error("Error cámara:", err);
             }
         }
 
         btnSwitch.addEventListener('click', () => {
-            currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+            useFrontCamera = !useFrontCamera; // alterna true/false
             startCamera();
         });
 
         btnTake.addEventListener('click', () => {
             const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             photoData = canvas.toDataURL('image/jpeg').split(',')[1];
-            preview.innerHTML = `<img src="data:image/jpeg;base64,${photoData}" width="300" style="border-radius:10px;">`;
+            preview.innerHTML = `<img src="image/jpeg;base64,${photoData}" width="300" style="border-radius:10px;">`;
             btnUpload.style.display = 'inline-block';
             status.textContent = "✅ Foto tomada. ¡Sube ahora!";
             status.className = "success";
@@ -116,6 +120,7 @@
             }
         });
 
+        // Iniciar con cámara trasera
         startCamera();
     </script>
 </body>
